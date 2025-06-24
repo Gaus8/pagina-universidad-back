@@ -1,20 +1,33 @@
-import Usuario from '../schemas/esquemaUsuario.js';
+import Usuario from '../../schemas/esquemaUsuario.js';
 import bcrypt from 'bcrypt';
-import { validarRegistro } from '../schemas/validarDatos.js';
+import { validarRegistro } from '../../schemas/validarDatos.js';
+
+
+const buscarEstudiante = async (email) => {
+  try {
+    const estudiante = await Usuario.findOne({ email });
+    return estudiante ?? null;
+  } catch (err) {
+    console.error('Error al buscar estudiante:', err);
+    return null;
+  }
+};
+
+
 
 export const registroEstudiante = async (req, res) => {
-  const datosValidados = validarRegistro(req.body);
+  const validarDatos = validarRegistro(req.body);
 
-  if (!datosValidados.success) {
+  if (!validarDatos.success) {
     res.status(400).json({
-      error: datosValidados.error
+      error: validarDatos.error
     })
   }
   else {
 
     try {
 
-      const { name, email, password } = datosValidados.data;
+      const { name, email, password } = validarDatos.data;
       const validarEstudiante = await buscarEstudiante(email);
 
       if(validarEstudiante !== null){
@@ -44,18 +57,5 @@ export const registroEstudiante = async (req, res) => {
       console.log(err);
     }
   }
-
 }
-
-
-
-const buscarEstudiante = async (email) => {
-  try {
-    const estudiante = await Usuario.findOne({ email });
-    return estudiante ?? null;
-  } catch (err) {
-    console.error('Error al buscar estudiante:', err);
-    return null;
-  }
-};
 
