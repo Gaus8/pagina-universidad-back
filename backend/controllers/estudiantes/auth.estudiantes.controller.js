@@ -1,7 +1,7 @@
 import Usuario from '../../schemas/esquemaUsuario.js';
 import bcrypt from 'bcrypt';
-import { validarRegistro } from '../../schemas/validarDatos.js';
-
+import { validarRegistro, validarLogin } from '../../schemas/validarDatos.js';
+import jwt from 'jsonwebtoken';
 
 const buscarEstudiante = async (email) => {
   try {
@@ -12,8 +12,6 @@ const buscarEstudiante = async (email) => {
     return null;
   }
 };
-
-
 
 export const registroEstudiante = async (req, res) => {
   const validarDatos = validarRegistro(req.body);
@@ -30,9 +28,9 @@ export const registroEstudiante = async (req, res) => {
       const { name, email, password } = validarDatos.data;
       const validarEstudiante = await buscarEstudiante(email);
 
-      if(validarEstudiante !== null){
-       return res.status(409).json({
-          message:'El email ya ha sido registrado!'
+      if (validarEstudiante !== null) {
+        return res.status(409).json({
+          message: 'El email ya ha sido registrado!'
         })
       }
 
@@ -59,3 +57,57 @@ export const registroEstudiante = async (req, res) => {
   }
 }
 
+export const loginEstudiante = async (req, res) => {
+  const validarDatos = validarLogin(req.body);
+
+  if (!validarDatos.success) {
+    res.status(400).json({
+      error: validarDatos.error
+    })
+  }
+  else {
+    const { email, password } = validarDatos.data;
+    const estudiante = await buscarEstudiante(email);
+
+    if (estudiante === null) {
+      return res.status(404).json({
+        status: 'error',
+        message: "El email no se encuntra registrado"
+      })
+    }
+
+    const validarPassword = await bcrypt.compare(password, estudiante.password);
+    if (!validarPassword) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Contraseña incorrecta'
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: estudiante._id,
+        name: estudiante.name,
+        email: estudiante.email
+      },
+      process.env.JWT_TOKEN,
+      {
+        expiresIn: '1h'
+      }
+    )
+
+    res.cookie('access_token', token, {
+      httpOnly: true,        // No accesible desde JS
+      secure: false,          // Solo HTTPS
+      sameSite: 'Strict',    // Evita envío entre sitios
+      maxAge: 3600000,       // 1 hora
+    })
+    .status(200).json({
+      status:'success',
+      message:"Login Exitoso"
+    })
+
+
+  }
+
+}
