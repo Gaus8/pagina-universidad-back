@@ -18,7 +18,7 @@ export const registroEstudiante = async (req, res) => {
 
   if (!validarDatos.success) {
     res.status(400).json({
-      error: validarDatos.error
+      error: validarDatos.error.issues
     })
   }
   else {
