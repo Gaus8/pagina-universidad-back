@@ -119,12 +119,8 @@ export const loginEstudiante = async (req, res) => {
         status: 'success',
         message: "Login Exitoso"
       })
-
-
   }
-
 }
-
 
 export const verificarCuenta = async (req, res) => {
   const { token } = req.params;
