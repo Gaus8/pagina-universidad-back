@@ -1,6 +1,7 @@
 import Usuario from '../../schemas/esquemaUsuario.js';
 import bcrypt from 'bcrypt';
 import { validarRegistro, validarLogin } from '../../schemas/validarDatos.js';
+import { generarTokenVerificacion, enviarCorreoVerificacion } from '../../middleware/validarEmail.js';
 import jwt from 'jsonwebtoken';
 
 const buscarEstudiante = async (email) => {
@@ -27,6 +28,8 @@ export const registroEstudiante = async (req, res) => {
 
       const { name, email, password } = validarDatos.data;
       const validarEstudiante = await buscarEstudiante(email);
+      const tokenValidacion = generarTokenVerificacion();
+
 
       if (validarEstudiante !== null) {
         return res.status(409).json({
@@ -34,17 +37,20 @@ export const registroEstudiante = async (req, res) => {
         })
       }
 
-      const passwordHashed = await bcrypt.hash(password, 10);
-
-      const nuevoEstudiante = new Usuario({
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+      const nuevoRegistro = {
         name,
         email,
-        password: passwordHashed
-      });
+        password: hashedPassword,
+        verificationToken: tokenValidacion
+      };
 
-      const registrarEstudiante = await nuevoEstudiante.save();
+        await enviarCorreoVerificacion(nuevoRegistro, tokenValidacion);
+      const sendMessage = await Usuario.create(nuevoRegistro); //Guardar el nuevo usuario en la base de datos
+    
 
-      if (registrarEstudiante) {
+      if (sendMessage) {
         return res.status(201).json({
           status: "success",
           message: 'Usuario Registrado con Éxito'
@@ -76,6 +82,13 @@ export const loginEstudiante = async (req, res) => {
       })
     }
 
+    if (!estudiante.verified) { //verificar si el usuario ya verifico la cuenta
+      return res.status(403).json({
+        status: 'error',
+        message: 'Debes verificar tu cuenta por correo antes de iniciar sesión.'
+      });
+    }
+
     const validarPassword = await bcrypt.compare(password, estudiante.password);
     if (!validarPassword) {
       return res.status(404).json({
@@ -102,12 +115,33 @@ export const loginEstudiante = async (req, res) => {
       sameSite: 'Strict',    // Evita envío entre sitios
       maxAge: 3600000,       // 1 hora
     })
-    .status(200).json({
-      status:'success',
-      message:"Login Exitoso"
-    })
+      .status(200).json({
+        status: 'success',
+        message: "Login Exitoso"
+      })
 
 
   }
 
 }
+
+
+export const verificarCuenta = async (req, res) => {
+  const { token } = req.params;
+  try {
+    const user = await Usuario.findOne({ verificationToken: token });
+
+    if (!user) {
+      return res.status(400).json({ mensaje: 'Token de verificación inválido o expirado.' });
+    }
+
+    user.verified = true;
+    user.verificationToken = undefined;
+    await user.save();
+
+    // Responder con mensaje JSON, el frontend se encarga de la redirección
+    res.status(200).json({ mensaje: 'Cuenta verificada correctamente.' });
+  } catch (err) {
+    res.status(500).json({ mensaje: 'Error al verificar la cuenta.' });
+  }
+};
